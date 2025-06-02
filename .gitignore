@@ -1,0 +1,16 @@
+*.vscode
+*.meta
+*.csproj
+*.apk
+
+Assets/MetaXR
+Assets/Oculus
+Assets/TextMesh Pro
+Assets/TutorialInfo
+Assets/uLipSync
+Assets/XR
+Assets/Artworks
+Assets/Resources
+Library
+Logs
+Temp
