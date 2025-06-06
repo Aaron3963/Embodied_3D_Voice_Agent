@@ -10,12 +10,16 @@ using System.Collections.Generic;
 public class RealtimeAPIWrapper : MonoBehaviour
 {
     private ClientWebSocket ws;
+    [Header("TTS Voice Selection")]
+    [Tooltip("Which TTS voice to use (e.g. \"alloy\", \"ash\", \"ballad\", \"coral\", \"verse\").")]
+    public string voiceId = "alloy";
     [SerializeField] string apiKey = "YOUR_API_KEY";
     public AudioPlayer audioPlayer;
     public AudioRecorder audioRecorder;
     private StringBuilder messageBuffer = new StringBuilder();
     private StringBuilder transcriptBuffer = new StringBuilder();
     private bool isResponseInProgress = false;
+    private bool hasAudioStreamed     = false;
 
     public static event Action OnWebSocketConnected;
     public static event Action OnWebSocketClosed;
@@ -75,7 +79,7 @@ public class RealtimeAPIWrapper : MonoBehaviour
     /// </summary>
     private async void SendCancelEvent()
     {
-        if (ws.State == WebSocketState.Open && isResponseInProgress)
+        if (ws != null && ws.State == WebSocketState.Open && isResponseInProgress && hasAudioStreamed)
         {
             var cancelMessage = new
             {
@@ -86,6 +90,7 @@ public class RealtimeAPIWrapper : MonoBehaviour
             await ws.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, CancellationToken.None);
             OnResponseCancelled?.Invoke();
             isResponseInProgress = false;
+            hasAudioStreamed = false;
         }
     }
 
@@ -94,7 +99,7 @@ public class RealtimeAPIWrapper : MonoBehaviour
     /// </summary>
     private async void SendAudioToAPI(string base64AudioData)
     {
-        if (isResponseInProgress)
+        if (isResponseInProgress) 
             SendCancelEvent();
 
         if (ws != null && ws.State == WebSocketState.Open)
@@ -123,7 +128,8 @@ public class RealtimeAPIWrapper : MonoBehaviour
                 response = new
                 {
                     modalities = new[] { "audio", "text" },
-                    instructions = "Please provide a transcript."
+                    instructions = "Please provide a transcript.",
+                    voice = voiceId
                 }
             };
             string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(responseMessage);
@@ -191,7 +197,7 @@ public class RealtimeAPIWrapper : MonoBehaviour
             { "response.done", HandleResponseDone },
             { "response.created", HandleResponseCreated },
             { "session.created", _ => OnSessionCreated?.Invoke() },
-            { "response.audio.done", _ => OnResponseAudioDone?.Invoke() },
+            { "response.audio.done", HandleAudioDone },
             { "response.audio_transcript.done", _ => OnResponseAudioTranscriptDone?.Invoke() },
             { "response.content_part.done", _ => OnResponseContentPartDone?.Invoke() },
             { "response.output_item.done", _ => OnResponseOutputItemDone?.Invoke() },
@@ -207,9 +213,12 @@ public class RealtimeAPIWrapper : MonoBehaviour
     /// </summary>
     private void HandleAudioDelta(JObject eventMessage)
     {
+        if (!isResponseInProgress) 
+            return; // we’re no longer expecting audio, skip
         string base64AudioData = eventMessage["delta"]?.ToString();
         if (!string.IsNullOrEmpty(base64AudioData))
         {
+            hasAudioStreamed = true;   
             byte[] pcmAudioData = Convert.FromBase64String(base64AudioData);
             audioPlayer.EnqueueAudioData(pcmAudioData);
         }
@@ -233,11 +242,14 @@ public class RealtimeAPIWrapper : MonoBehaviour
     /// </summary>
     private void HandleResponseDone(JObject eventMessage)
     {
-        if (!audioPlayer.IsAudioPlaying())
-        {
-            isResponseInProgress = false;
-        }
         OnResponseDone?.Invoke();
+    }
+
+    private void HandleAudioDone(JObject eventMessage)
+    {
+        hasAudioStreamed     = false;
+        isResponseInProgress = false;
+        OnResponseAudioDone?.Invoke();
     }
 
     /// <summary>
@@ -247,6 +259,7 @@ public class RealtimeAPIWrapper : MonoBehaviour
     {
         transcriptBuffer.Clear();
         isResponseInProgress = true;
+        hasAudioStreamed     = false;
         OnResponseCreated?.Invoke();
     }
 

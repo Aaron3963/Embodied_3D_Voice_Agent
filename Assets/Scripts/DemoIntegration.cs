@@ -6,7 +6,7 @@ using Meta.XR.MRUtilityKit;
 
 public class DemoIntegration : MonoBehaviour
 {
-    [Header("VR Controller Bindings")]
+    [Header("Realtime API Wrapper Bindings")]
     [SerializeField] private RealtimeAPIWrapper realtimeAPIWrapper;
 
     [Header("VR Canvas Popup")]
@@ -17,6 +17,17 @@ public class DemoIntegration : MonoBehaviour
     [SerializeField] private EffectMesh effectMesh;                    // drag the GameObject that has EffectMesh
     [SerializeField] private Button    hideMeshButton;                 // your new button in the Settings UI
     [SerializeField] private TextMeshProUGUI hideMeshButtonText;       // the label inside that button
+
+    [Header("Voice‑Buttons (Alloy/Ash/Ballad/Coral/Verse)")]
+    [SerializeField] private Button btnAlloy;
+    [SerializeField] private Button btnAsh;
+    [SerializeField] private Button btnBallad;
+    [SerializeField] private Button btnCoral;
+    [SerializeField] private Button btnVerse;
+
+    [Header("Button Colors")]
+    [SerializeField] private Color inactiveColor = Color.white;
+    [SerializeField] private Color activeColor   = new Color(0f, 0.5f, 1f); // e.g. a blue tint
 
     [SerializeField] private KeyCode pushToTalkKey = KeyCode.Space;
     [SerializeField] private AudioRecorder audioRecorder;
@@ -59,6 +70,16 @@ public class DemoIntegration : MonoBehaviour
         if (effectMesh == null)
             effectMesh = FindObjectOfType<EffectMesh>();
 
+        btnAlloy.onClick.AddListener(()   => SelectVoice("alloy",   btnAlloy));
+        btnAsh.onClick.AddListener(()     => SelectVoice("ash",     btnAsh));
+        btnBallad.onClick.AddListener(()  => SelectVoice("ballad",  btnBallad));
+        btnCoral.onClick.AddListener(()   => SelectVoice("coral",   btnCoral));
+        btnVerse.onClick.AddListener(()   => SelectVoice("verse",   btnVerse));
+
+        // 3) Initialize button‑colors based on the default voice (if any)
+        //    If realtimeAPIWrapper.voiceId was set already in Inspector, highlight that.
+        UpdateVoiceButtonColors();
+
         hideMeshButton.onClick.AddListener(OnToggleHideMesh);
         UpdateHideMeshButtonLabel();
         
@@ -84,6 +105,32 @@ public class DemoIntegration : MonoBehaviour
         aiBarAmplitudes = new float[aiFrequencyBars.Length];
     }
 
+    /// <summary>
+    /// Called whenever one of the five voice‑buttons is clicked.
+    /// Sets the new voice ID and repaints button colors.
+    /// </summary>
+    private void SelectVoice(string voiceId, Button chosenButton)
+    {
+        realtimeAPIWrapper.voiceId = voiceId;
+        UpdateVoiceButtonColors();
+    }
+
+    /// <summary>
+    /// Tints all five buttons. The currently active voice gets activeColor; the others get inactiveColor.
+    /// </summary>
+    private void UpdateVoiceButtonColors()
+    {
+        // 1) Figure out which voice is currently active
+        string current = realtimeAPIWrapper.voiceId;
+
+        // 2) For each button, compare its corresponding voice string against current
+        btnAlloy.image.color  = (current == "alloy")  ? activeColor : inactiveColor;
+        btnAsh.image.color    = (current == "ash")    ? activeColor : inactiveColor;
+        btnBallad.image.color = (current == "ballad") ? activeColor : inactiveColor;
+        btnCoral.image.color  = (current == "coral")  ? activeColor : inactiveColor;
+        btnVerse.image.color  = (current == "verse")  ? activeColor : inactiveColor;
+    }
+    
     /// <summary>
     /// Called when your “Hide Mesh” button is clicked.
     /// </summary>
